@@ -70,7 +70,7 @@ void makefile() {
             break;
         }
     }
-
+Row 1
     sprintf(make_fname, "%s_Makefile", copy); // Makefile 이름 생성
 
     if ((fp = fopen(make_fname, "w+")) == NULL) { // Makefile 작성
@@ -129,7 +129,9 @@ void cfile_write(char *c_buf) { // 나중에 옵션처리시 idx로 자바,c 키
                 printf("%s\n", c_op_buf);
 
             memset(c_op_buf, 0, sizeof(char) * BUFFER_SIZE); // c file buffer 초기화
-            file_line[file_count] = --c_line_count; // c file line을 저장하는 배열에 라인 수 저장
+
+            if (l_option)
+                file_line[file_count] = --c_line_count; // c file line을 저장하는 배열에 라인 수 저장
             c_line_count = 0;
 
             if (r_option) // r option시에 class하나 끝날 때마다 convert finish 메세지를 출력

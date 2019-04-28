@@ -135,8 +135,6 @@ void cfile_write(char *c_buf) { // 나중에 옵션처리시 idx로 자바,c 키
             fclose(c_fp); // class가 끝났으므로 c file을 close해줌
             printf("%s convert Success!\n", fname[file_count]); // 변환 완료 메세지 출력
 
-            //memset(c_op_buf, 0, sizeof(char) * BUFFER_SIZE * 100); // c file buffer 초기화
-
             if (l_option)
                 file_line[file_count] = --c_line_count; // c file line을 저장하는 배열에 라인 수 저장
             c_line_count = 0;
@@ -153,10 +151,12 @@ void cfile_write(char *c_buf) { // 나중에 옵션처리시 idx로 자바,c 키
         fwrite("\t", 1, 1, c_fp); // indent를 count한 중괄호 개수만큰 출력
     }
 
-    if (no_brace) {
+    if ((no_brace) && (c_buf[0] != '{')) {
+        printf("%s\n", c_buf);
         fwrite("\t", 1, 1, c_fp); // 만약 이전 문장이 for문이나 if문이었는데 중괄호가 없었다면 한 칸 tab
-        no_brace = false;
     }
+
+    no_brace = false;
 
     if (((strstr(c_buf, "if") != NULL) || (strstr(c_buf, "for")!= NULL)) && (strstr(c_buf, "{") == NULL)) // if or for문에 여는 중괄호가 없으면 다음 문장에 tab추가
         no_brace = true;

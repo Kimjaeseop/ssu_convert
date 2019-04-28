@@ -70,7 +70,6 @@ void makefile() {
             break;
         }
     }
-Row 1
     sprintf(make_fname, "%s_Makefile", copy); // Makefile 이름 생성
 
     if ((fp = fopen(make_fname, "w+")) == NULL) { // Makefile 작성

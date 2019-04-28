@@ -1,6 +1,6 @@
-#include <stdio.h> // ftell -> ftello, fseek -> fseeko 바꿔야 됌
-#include <stdlib.h> // add_header에서 main있는지 체크
-#include <string.h> // default -> exist_main = -1
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <fcntl.h>
 #include <stdbool.h>
 #include <unistd.h>
@@ -8,9 +8,16 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/time.h>
 #include "convert.h"
 
+#define SECOND_TO_MICRO 1000000
+
 int main(int argc, char *argv[]) {
+    struct timeval begin_t, end_t;
+
+    gettimeofday(&begin_t, NULL);
+
     java = (char *)malloc(sizeof(char) * strlen(argv[1]));
     strcpy(java, argv[1]); // java file name 저장
 
@@ -49,7 +56,11 @@ int main(int argc, char *argv[]) {
     convert(); // convert 시작
     makefile(); // 만들어진 c 파일을 컴파일 할 makefile 생성
 
-    return 0;
+
+    gettimeofday(&end_t, NULL);
+    ssu_runtime(&begin_t, &end_t);
+
+    exit(0);
 }
 
 void makefile() {
@@ -124,10 +135,7 @@ void cfile_write(char *c_buf) { // 나중에 옵션처리시 idx로 자바,c 키
             fclose(c_fp); // class가 끝났으므로 c file을 close해줌
             printf("%s convert Success!\n", fname[file_count]); // 변환 완료 메세지 출력
 
-            if (c_option) // c_option 시에 완료된 c file buffer를 출력
-                printf("%s\n", c_op_buf);
-
-            memset(c_op_buf, 0, sizeof(char) * BUFFER_SIZE); // c file buffer 초기화
+            //memset(c_op_buf, 0, sizeof(char) * BUFFER_SIZE * 100); // c file buffer 초기화
 
             if (l_option)
                 file_line[file_count] = --c_line_count; // c file line을 저장하는 배열에 라인 수 저장
@@ -164,7 +172,7 @@ void cfile_write(char *c_buf) { // 나중에 옵션처리시 idx로 자바,c 키
             strcat(temp, "\t");
         strcat(temp, c_buf);
         strcat(temp, "\n");
-        strcat(c_op_buf, temp);
+        strcat(c_op_buf[file_count], temp);
     }
 
     if (r_option) { // r option시에 c file과 java 파일의 입출력 stream을 초기화 (입출력버퍼가 남아있는 경우의 처리)
@@ -183,7 +191,7 @@ void cfile_write(char *c_buf) { // 나중에 옵션처리시 idx로 자바,c 키
             printf("%s\n", j_op_buf); // java file buffer print
             printf("------\n");
             printf("%s\n", fname[file_count]); // c file name print
-            printf("%s\n", c_op_buf); // c file buffer printf
+            printf("%s\n", c_op_buf[file_count]); // c file buffer printf
             printf("------\n");
             sleep(1); // 변환되는 과정을 보이기 위해 1초 delay
             exit(0); // 자식 프로세스 종료
@@ -556,6 +564,11 @@ void convert() { // convert 시작
     }
 
     fclose(fp1); // 버퍼를 모두 읽으면 java file close
+    if (c_option) {
+        for (int i = 0; i <= file_count; i++) {
+            printf("%s\n", c_op_buf[i]);
+        }
+    }
     if (l_option) { // l option 시에 count 했던 java와 c파일의 line count 출력
         printf("%s line number is %d lines\n", java, java_line_count);
         for (int i = 0; i < file_count; i++) {
@@ -977,7 +990,7 @@ void is_return(char *buf) { // 특별한 값을 반환하는것이 아니라면 
         cfile_write(buf); // 이외의 리턴값은 그대로 출력
 }
 
-void is_if(char *buf) { // buf 맨마지막에 중괄호가 없으면 일시적으로 brace += 1;
+void is_if(char *buf) { // if문에 FileWriter의 객체명이 들어가면 에러처리로 구분해서 return
     for (int i = 0; i < file_top; i++) {
         if (strstr(buf, wr_name[i]) != NULL) {
             return ;
@@ -1052,4 +1065,17 @@ void p_overlap(char *buf) { // new, FileWriter같은 따로 처리가 필요한 
                 p_check[p_count++] = i;
         }
     }
+}
+
+void ssu_runtime(struct timeval* begin_t, struct timeval* end_t) {
+    end_t -> tv_sec -= begin_t -> tv_sec;
+
+    if (end_t -> tv_usec < begin_t -> tv_usec) {
+        end_t -> tv_sec--;
+        end_t -> tv_usec += SECOND_TO_MICRO;
+    }
+
+    end_t -> tv_usec -= begin_t -> tv_usec;
+    printf("Runtime : %ld:%06ld(sec:usec)\n",
+            end_t -> tv_sec, end_t -> tv_usec);
 }

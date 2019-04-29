@@ -127,8 +127,9 @@ void makefile() {
 void cfile_write(char *c_buf) { // 나중에 옵션처리시 idx로 자바,c 키워드 받아옴
     int write_brace = count_brace(c_buf);
     char *temp = (char *)malloc(sizeof(char) * BUFFER_SIZE);
+    bool r_op_no_brace = 0; // r_option시 if or for이 중괄호가 없을때 일시적인 한칸 탭을 위하여 체크하는 변수
 
-    ++c_line_count; // 
+    ++c_line_count; // c_line 수 더함
 
     if (write_brace == -1) { // 닫는 괄호는 즉시 중괄호 갯수를 빼줌
         if (!brace) { // 중괄호 카운트가 0일때 중괄호 카운트를 빼면 리턴 -> class 하나가 끝남을 의미
@@ -152,8 +153,9 @@ void cfile_write(char *c_buf) { // 나중에 옵션처리시 idx로 자바,c 키
     }
 
     if ((no_brace) && (c_buf[0] != '{')) {
-        printf("%s\n", c_buf);
         fwrite("\t", 1, 1, c_fp); // 만약 이전 문장이 for문이나 if문이었는데 중괄호가 없었다면 한 칸 tab
+        if (r_option)
+            r_op_no_brace = true;
     }
 
     no_brace = false;
@@ -164,12 +166,15 @@ void cfile_write(char *c_buf) { // 나중에 옵션처리시 idx로 자바,c 키
     fwrite(c_buf, sizeof(char) * strlen(c_buf), 1, c_fp); // buffer를 받아서 write 
     fwrite("\n", 1, 1, c_fp); // buffer를 받아서 write 
 
-
     if (c_option || r_option) { // c_option or r_option시에 c buffer 저장
         sprintf(temp, "%d ", c_line_count);
 
         for (int i = 0; i < brace; i++)
             strcat(temp, "\t");
+        if (r_op_no_brace)
+            strcat(temp, "\t");
+        r_op_no_brace = false;
+
         strcat(temp, c_buf);
         strcat(temp, "\n");
         strcat(c_op_buf[file_count], temp);
@@ -407,29 +412,20 @@ int seperation_datatype(char *buf) { // buffer에 데이터 타입이 있는지 
     strcpy(tmp, ltrim(tmp));
 
     for (int i = 0; i < DATATYPE_CNT; i++) {
-        if ((strstr(tmp, data_return_type[i]) != NULL) &&
+        if (((tok = strstr(tmp, data_return_type[i])) != NULL) &&
                 (strstr(tmp, "for") == NULL) && // for문은 따로 함수호출을 하기때문에 예외처리
                 (strstr(tmp, "printf") == NULL) && // printf에 "int"가 들어가므로 예외처리
                 (strstr(tmp, "(") == NULL)) { // 괄호가 들어가면 메소드이거나 변수선언은 아니므로 예외처리
-            tok = strtok(tmp, " "); // 자료형만 떼어냄
+            tok = strtok(tok, " "); // 자료형만 떼어냄
 
-            if (!strncmp(tok, data_return_type[i], strlen(data_return_type[i]))) { // 자료형이라면 자료형 배열의 인덱스 리턴
+            if (!strncmp(tok, data_return_type[i], strlen(data_return_type[i])) && ((strstr(buf, "new") == NULL))) { // 자료형이라면 자료형 배열의 인덱스 리턴
                 datatype_check = true;
                 return i;
-            }
-
-            for (int j = 0; j < KEYWORD_CNT; j++) { // 만약 자료형이아니고 java keyword인 경우를 걸러냄
-                if (!strncmp(KEYWORD[j].java_keyword, tok, strlen(KEYWORD[j].java_keyword))) {
-                    datatype_check = true;
-                    break;
-                }
             }
         }
 
         if ((strncmp(tmp, "FileWriter", 10) != 0) && (!strncmp(tmp, "File", 4))) // File 이 괄호때문에 위에서 걸러지기 때문에 따로처리
             return 9;
-        if (datatype_check)
-            return i;
     }
 
     return -1;
@@ -534,13 +530,15 @@ void convert() { // convert 시작
         fflush(fp1); // 버퍼를 받을 때마다 입출력버퍼 초기화
         fflush(c_fp);
         ++java_line_count; // 자바 라인수 count
+        
+        sprintf(temp, "%d %s", java_line_count, buf);
         if (j_option || r_option) { // j option or r option시 java file을 출력하므로 line_count를 붙여서 저장
             memset(temp, 0, sizeof(char) * BUFFER_SIZE);
             sprintf(temp, "%d %s", java_line_count, buf);
             strcat(j_op_buf, temp);
         }
-
         strcpy(buf, ltrim(buf)); // 왼쪽 공백 제거
+
         if (!strlen(buf)) { // 빈 문자열, continue
             continue;
         }
@@ -564,7 +562,7 @@ void convert() { // convert 시작
     }
 
     fclose(fp1); // 버퍼를 모두 읽으면 java file close
-    if (c_option) {
+    if (c_option) { // c option 시에 cfile buffer 출력
         for (int i = 0; i <= file_count; i++) {
             printf("%s\n", c_op_buf[i]);
         }
@@ -990,9 +988,9 @@ void is_return(char *buf) { // 특별한 값을 반환하는것이 아니라면 
         cfile_write(buf); // 이외의 리턴값은 그대로 출력
 }
 
-void is_if(char *buf) { // if문에 FileWriter의 객체명이 들어가면 에러처리로 구분해서 return
+void is_if(char *buf) { // if문에 FileWriter의 객체명과 null이 들어가면 에러처리로 구분해서 return
     for (int i = 0; i < file_top; i++) {
-        if (strstr(buf, wr_name[i]) != NULL) {
+        if ((strstr(buf, wr_name[i]) != NULL) && ((strstr(buf, "null") != NULL) || (strstr(buf, "NULL") != NULL) || (strstr(buf, "\0") != NULL))) {
             return ;
         }
     }
